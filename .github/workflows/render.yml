@@ -1,0 +1,32 @@
+name: Render 25-Min Horror Video
+
+on:
+  workflow_dispatch:
+
+jobs:
+  render:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Repo
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.10'
+
+      - name: Install Dependencies
+        run: |
+          sudo apt-get update && sudo apt-get install -y ffmpeg
+          pip install edge-tts mutagen requests
+
+      - name: Run 25-Min Pipeline
+        env:
+          PEXELS_API_KEY: ${{ secrets.PEXELS_API_KEY }}
+        run: python build_movie.py
+
+      - name: Upload Final 25-Min Video
+        uses: actions/upload-artifact@v4
+        with:
+          name: Project-18-9Hz-2026-11-13
+          path: 2026-11-13_Project_18_9Hz/FINAL_25MIN_HORROR_2026-11-13.mp4
