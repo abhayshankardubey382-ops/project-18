@@ -139,7 +139,7 @@ async def main():
                 if not rendered:
                     make_fallback_clip(clip_dur, graded_clip)
 
-                f.write(f"file '{graded_clip}'\n")
+                f.write(f"file '{os.path.abspath(graded_clip)}'\n")
 
         raw_vid = f"/tmp/raw_part_{part_id}.mp4"
         subprocess.run(["ffmpeg", "-y", "-f", "concat", "-safe", "0", "-i", clip_list, "-c", "copy", raw_vid], check=True)
@@ -162,7 +162,7 @@ async def main():
 
     with open("/tmp/all_parts.txt", "w") as f:
         for pv in part_videos:
-            f.write(f"file '{pv}'\n")
+            f.write(f"file '{os.path.abspath(pv)}'\n")
 
     final_master = f"{BASE_DIR}/FINAL_25MIN_HORROR_2026-11-13.mp4"
     subprocess.run(["ffmpeg", "-y", "-f", "concat", "-safe", "0", "-i", "/tmp/all_parts.txt", "-c", "copy", final_master], check=True)
