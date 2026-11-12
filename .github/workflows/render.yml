@@ -10,6 +10,14 @@ jobs:
       - name: Checkout Repo
         uses: actions/checkout@v4
 
+      - name: Restore Saved Parts Cache
+        uses: actions/cache@v4
+        with:
+          path: 2026-11-13_Project_18_9Hz
+          key: project-18-9hz-${{ github.run_id }}
+          restore-keys: |
+            project-18-9hz-
+
       - name: Setup Python
         uses: actions/setup-python@v5
         with:
@@ -25,8 +33,9 @@ jobs:
           PIXABAY_API_KEY: ${{ secrets.PIXABAY_API_KEY }}
         run: python build_movie.py
 
-      - name: Upload Final 25-Min Video
+      - name: Upload All Parts & Final Video
+        if: always()
         uses: actions/upload-artifact@v4
         with:
           name: Project-18-9Hz-2026-11-13
-          path: 2026-11-13_Project_18_9Hz/FINAL_25MIN_HORROR_2026-11-13.mp4
+          path: 2026-11-13_Project_18_9Hz/
