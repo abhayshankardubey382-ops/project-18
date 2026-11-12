@@ -55,20 +55,33 @@ def download_stock_video(query, out_path):
         return False
     try:
         url = f"https://pixabay.com/api/videos/?key={PIXABAY_API_KEY}&q={requests.utils.quote(query)}&per_page=3"
-        r = requests.get(url, timeout=15).json()
-        hits = r.get("hits", [])
+        resp_json = requests.get(url, timeout=15)
+        if resp_json.status_code != 200:
+            return False
+        hits = resp_json.json().get("hits", [])
         if not hits:
             return False
         vids = hits[0].get("videos", {})
         link = vids.get("medium", {}).get("url") or vids.get("small", {}).get("url") or vids.get("large", {}).get("url")
         if not link:
             return False
+        vid_resp = requests.get(link, timeout=30)
+        if vid_resp.status_code != 200 or len(vid_resp.content) < 50000:
+            return False
         with open(out_path, "wb") as f:
-            f.write(requests.get(link, timeout=30).content)
+            f.write(vid_resp.content)
         return True
     except Exception as e:
         print(f"Pixabay fallback for '{query}': {e}")
         return False
+
+def make_fallback_clip(clip_dur, graded_clip):
+    subprocess.run([
+        "ffmpeg", "-y", "-f", "lavfi",
+        "-i", f"color=c=#080c14:s=1280x720:d={clip_dur:.2f}:r=24",
+        "-vf", "noise=alls=12:allf=t+u,vignette=PI/3",
+        "-c:v", "libx264", "-preset", "ultrafast", "-pix_fmt", "yuv420p", graded_clip
+    ], check=True)
 
 async def make_voice(text, out_path):
     comm = edge_tts.Communicate(text=text.strip(), voice="hi-IN-MadhurNeural", rate="-10%", pitch="-4Hz")
@@ -106,25 +119,25 @@ async def main():
                 raw_clip = f"{BASE_DIR}/stock/p{part_id}_q{idx}.mp4"
                 graded_clip = f"/tmp/p{part_id}_graded_{idx}.mp4"
 
-                if not os.path.exists(raw_clip):
-                    ok = download_stock_video(q, raw_clip)
-                else:
-                    ok = True
+                ok = os.path.exists(raw_clip) or download_stock_video(q, raw_clip)
+                rendered = False
 
                 if ok and os.path.exists(raw_clip):
-                    subprocess.run([
-                        "ffmpeg", "-y", "-stream_loop", "-1", "-i", raw_clip,
-                        "-t", f"{clip_dur:.2f}", "-an",
-                        "-vf", "scale=1280:720:force_original_aspect_ratio=increase,crop=1280:720,eq=brightness=-0.10:contrast=1.25:saturation=0.50,vignette=PI/4,fps=24",
-                        "-c:v", "libx264", "-preset", "fast", "-pix_fmt", "yuv420p", graded_clip
-                    ], check=True)
-                else:
-                    subprocess.run([
-                        "ffmpeg", "-y", "-f", "lavfi",
-                        "-i", f"color=c=#080c14:s=1280x720:d={clip_dur:.2f}:r=24",
-                        "-vf", "noise=alls=12:allf=t+u,vignette=PI/3",
-                        "-c:v", "libx264", "-pix_fmt", "yuv420p", graded_clip
-                    ], check=True)
+                    try:
+                        subprocess.run([
+                            "ffmpeg", "-y", "-stream_loop", "-1", "-i", raw_clip,
+                            "-t", f"{clip_dur:.2f}", "-an",
+                            "-vf", "scale=1280:720:force_original_aspect_ratio=increase,crop=1280:720,eq=brightness=-0.10:contrast=1.25:saturation=0.50,vignette=PI/4,fps=24",
+                            "-c:v", "libx264", "-preset", "ultrafast", "-pix_fmt", "yuv420p", graded_clip
+                        ], check=True)
+                        rendered = True
+                    except subprocess.CalledProcessError:
+                        print(f"[Warning] Clip {q} failed, using dark fallback")
+                        if os.path.exists(raw_clip):
+                            os.remove(raw_clip)
+
+                if not rendered:
+                    make_fallback_clip(clip_dur, graded_clip)
 
                 f.write(f"file '{graded_clip}'\n")
 
